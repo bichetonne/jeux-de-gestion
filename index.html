@@ -1,1 +1,280 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jeu de Gestion de Ville</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #2c3e50;
+            color: #ecf0f1;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        h1 {
+            margin-bottom: 10px;
+        }
+        #game-container {
+            display: flex;
+            gap: 20px;
+            background: #34495e;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+        }
+        #sidebar {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            width: 220px;
+        }
+        .panel {
+            background: #2c3e50;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        .panel h3 {
+            margin-top: 0;
+            font-size: 16px;
+            border-bottom: 1px solid #7f8c8d;
+            padding-bottom: 5px;
+        }
+        button {
+            background: #27ae60;
+            color: white;
+            border: none;
+            padding: 10px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background 0.2s;
+        }
+        button:hover {
+            background: #2ecc71;
+        }
+        .build-btn {
+            background: #2980b9;
+            margin-bottom: 5px;
+            width: 100%;
+            text-align: left;
+        }
+        .build-btn:hover {
+            background: #3498db;
+        }
+        .build-btn.active {
+            background: #e67e22;
+        }
+        #grid {
+            display: grid;
+            grid-template-columns: repeat(6, 60px);
+            grid-template-rows: repeat(6, 60px);
+            gap: 4px;
+            background: #2c3e50;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        .cell {
+            background: #95a5a6;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            cursor: pointer;
+            user-select: none;
+            transition: background 0.2s;
+        }
+        .cell:hover {
+            background: #bdc3c7;
+        }
+        .cell.house { background: #e74c3c; }
+        .cell.factory { background: #7f8c8d; }
+        .cell.farm { background: #f1c40f; }
+        .cell.park { background: #2ecc71; }
+    </style>
+</head>
+<body>
 
+    <h1>Gestion de Ville</h1>
+    
+    <div id="game-container">
+        <!-- Panneau latéral : Infos et Construction -->
+        <div id="sidebar">
+            <div class="panel">
+                <h3>Statistiques</h3>
+                <p>💰 Argent : <span id="stat-money">500</span> €</p>
+                <p>👥 Population : <span id="stat-pop">0</span></p>
+                <p>🌾 Nourriture : <span id="stat-food">10</span></p>
+                <p>😊 Bonheur : <span id="stat-happy">100</span>%</p>
+                <p>⏳ Tour : <span id="stat-turn">1</span></p>
+            </div>
+
+            <div class="panel">
+                <h3>Constructions</h3>
+                <button class="build-btn" onclick="selectBuilding('house', 50)">🏠 Maison (50€)</button>
+                <button class="build-btn" onclick="selectBuilding('factory', 100)">🏭 Usine (100€)</button>
+                <button class="build-btn" onclick="selectBuilding('farm', 40)">🌾 Ferme (40€)</button>
+                <button class="build-btn" onclick="selectBuilding('park', 60)">🌳 Parc (60€)</button>
+                <button class="build-btn" onclick="selectBuilding(null, 0)" style="background: #c0392b;">❌ Annuler</button>
+            </div>
+
+            <button onclick="nextTurn()">Tour Suivant ➡️</button>
+        </div>
+
+        <!-- Grille de la ville -->
+        <div id="grid"></div>
+    </div>
+
+    <script>
+        // Paramètres du jeu
+        const gridSize = 6;
+        let money = 500;
+        let population = 0;
+        let food = 10;
+        let happiness = 100;
+        let turn = 1;
+
+        let selectedBuilding = null;
+        let selectedCost = 0;
+
+        // Grille logique (stocke le type de bâtiment par case)
+        let cityGrid = Array(gridSize * gridSize).fill(null);
+
+        // Configuration des bâtiments
+        const buildingsData = {
+            house: { name: 'Maison', icon: '🏠', cost: 50 },
+            factory: { name: 'Usine', icon: '🏭', cost: 100 },
+            farm: { name: 'Ferme', icon: '🌾', cost: 40 },
+            park: { name: 'Parc', icon: '🌳', cost: 60 }
+        };
+
+        // Initialisation de l'affichage de la grille
+        const gridElement = document.getElementById('grid');
+
+        function initGrid() {
+            gridElement.innerHTML = '';
+            for (let i = 0; i < gridSize * gridSize; i++) {
+                const cell = document.createElement('div');
+                cell.classList.add('cell');
+                cell.dataset.index = i;
+                cell.addEventListener('click', () => handleCellClick(i));
+                gridElement.appendChild(cell);
+            }
+            updateUI();
+        }
+
+        // Sélectionner un bâtiment à construire
+        function selectBuilding(type, cost) {
+            selectedBuilding = type;
+            selectedCost = cost;
+            
+            // Mise à jour visuelle des boutons
+            document.querySelectorAll('.build-btn').forEach(btn => btn.classList.remove('active'));
+            if (type) {
+                event.target.classList.add('active');
+            }
+        }
+
+        // Cliquer sur une case de la grille
+        function handleCellClick(index) {
+            if (!selectedBuilding) {
+                alert("Sélectionne un bâtiment dans le menu de gauche !");
+                return;
+            }
+
+            if (cityGrid[index] !== null) {
+                alert("Cet emplacement est déjà occupé !");
+                return;
+            }
+
+            if (money < selectedCost) {
+                alert("Tu n'as pas assez d'argent !");
+                return;
+            }
+
+            // Achat et placement
+            money -= selectedCost;
+            cityGrid[index] = selectedBuilding;
+
+            updateGridView();
+            updateUI();
+        }
+
+        // Mettre à jour l'apparence de la grille
+        function updateGridView() {
+            const cells = gridElement.children;
+            for (let i = 0; i < cityGrid.length; i++) {
+                cells[i].className = 'cell';
+                cells[i].textContent = '';
+                
+                const bType = cityGrid[i];
+                if (bType) {
+                    cells[i].classList.add(bType);
+                    cells[i].textContent = buildingsData[bType].icon;
+                }
+            }
+        }
+
+        // Passer au tour suivant (Logique de gestion)
+        function nextTurn() {
+            turn++;
+            
+            let income = 0;
+            let foodProduced = 0;
+            let foodConsumed = 0;
+            let newPopulation = 0;
+            let happinessModifier = 0;
+
+            // Calcul des effets des bâtiments
+            cityGrid.forEach(b => {
+                if (b === 'house') {
+                    newPopulation += 4;
+                } else if (b === 'factory') {
+                    income += 25;
+                    foodConsumed += 2; // Les ouvriers consomment
+                    happinessModifier -= 3; // Pollution
+                } else if (b === 'farm') {
+                    foodProduced += 6;
+                } else if (b === 'park') {
+                    happinessModifier += 5;
+                }
+            });
+
+            population = newPopulation;
+            food += foodProduced - foodConsumed - Math.floor(population / 2);
+            money += income + (population * 2); // Taxes de base sur la population
+
+            // Gestion de la faim et du bonheur
+            if (food < 0) {
+                food = 0;
+                happiness -= 15;
+            } else {
+                happiness = Math.min(100, Math.max(0, 100 + happinessModifier));
+            }
+
+            // Si le bonheur est trop bas, la population boude (pas de gain d'argent)
+            if (happiness < 30) {
+                money -= 20; // Manifestations / Coûts sociaux
+            }
+
+            updateUI();
+        }
+
+        // Mettre à jour l'affichage texte du tableau de bord
+        function updateUI() {
+            document.getElementById('stat-money').textContent = money;
+            document.getElementById('stat-pop').textContent = population;
+            document.getElementById('stat-food').textContent = food;
+            document.getElementById('stat-happy').textContent = happiness;
+            document.getElementById('stat-turn').textContent = turn;
+        }
+
+        // Lancement au chargement
+        initGrid();
+    </script>
+</body>
+</html>
